@@ -2,6 +2,7 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.*;
 
 enum State {
@@ -14,8 +15,7 @@ public class Controller {
     private final int timeout;
     private final int rebalancePeriod;
     private final int cport;
-    private final Set<Socket> dStores;
-    private final List<Integer> dStorePorts;
+    private final Map<Socket, Integer> dStoreMap;
     private final Set<Socket> clients;
     private final Index index;
     private boolean open;
@@ -27,8 +27,7 @@ public class Controller {
         this.cport = cport;
         open = false;
         index = new Index();
-        dStorePorts = new ArrayList<>();
-        dStores = new HashSet<>();
+        dStoreMap = new HashMap<>();
         clients = new HashSet<>();
     }
 
@@ -57,7 +56,7 @@ public class Controller {
 
     private void closeConnections() {
         open = false;
-        for (var s : dStores) {
+        for (var s : dStoreMap.keySet()) {
             try {
                 s.close();
             } catch (Exception e) {
@@ -71,7 +70,7 @@ public class Controller {
                 System.err.println("Error closing connections to clients: " + e);
             }
         }
-        dStores.clear();
+        dStoreMap.clear();
         clients.clear();
         System.exit(0);
     }
@@ -87,10 +86,20 @@ public class Controller {
                         new Thread(() -> {
                             try {
                                 var in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                                String msg;
-                                while ((msg = in.readLine()) != null) handleMessage(msg, connection);
+                                connection.setSoTimeout(timeout);
+                                String msg = in.readLine();
+                                while (msg != null) {
+                                    handleMessage(msg, connection);
+                                    try {
+                                        msg = in.readLine();
+                                    } catch (SocketTimeoutException e) {
+                                        if (dStoreMap.containsKey(connection)) {
+
+                                        }
+                                    }
+                                }
                                 connection.close();
-                                dStores.remove(connection);
+                                dStoreMap.remove(connection);
                                 clients.remove(connection);
                             } catch (Exception e) {
                                 System.err.println("Error receiving data from " + connection + ": " + e);
@@ -110,6 +119,7 @@ public class Controller {
 
     public Set<Integer> getRDStores() {
         var res = new HashSet<Integer>();
+        var dStorePorts = (List<Integer>) dStoreMap.values();
         Collections.shuffle(dStorePorts);
         for (var i = 0; i < R; i++) {
             res.add(dStorePorts.get(i));
@@ -140,14 +150,15 @@ public class Controller {
     private void handleMessage(String msg, Socket sender) {
         var args = msg.split(" ");
         if (msg.startsWith("DSTORE")) {
-            dStorePorts.add(Integer.parseInt(msg.split(" ")[1]));
+            //dStorePorts.add(Integer.parseInt(msg.split(" ")[1]));
+            dStoreMap.put(sender, Integer.parseInt(msg.split(" ")[1]));
             try {
                 sender.setSoTimeout(timeout);
             } catch (SocketException e) {
                 System.err.println("Error adding timeout to socket: " + e);
                 e.printStackTrace();
             }
-            dStores.add(sender);
+            //dStores.add(sender);
         } else if (msg.startsWith("STORE_ACK")) {
             //TODO implement timeout
             synchronized (index) {
@@ -160,7 +171,7 @@ public class Controller {
         } else if (msg.startsWith("STORE")) {
             synchronized (index) {
                 clients.add(sender);
-                if (dStores.size() < R) {
+                if (dStoreMap.size() < R) {
                     sendMessage("ERROR_NOT_ENOUGH_DSTORES", sender);
                 } else if (index.containsFile(args[1])) {
                     sendMessage("ERROR_FILE_ALREADY_EXISTS", sender);
