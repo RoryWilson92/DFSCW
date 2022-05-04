@@ -43,7 +43,7 @@ public class Controller {
         new Controller(Integer.parseInt(args[0]), Integer.parseInt(args[1]), Integer.parseInt(args[2]), Integer.parseInt(args[3])).start();
     }
 
-    private static boolean deleteDirectory(File directoryToBeDeleted) {
+    public static boolean deleteDirectory(File directoryToBeDeleted) {
         var allContents = directoryToBeDeleted.listFiles();
         var res = true;
         if (allContents != null) {
@@ -93,11 +93,14 @@ public class Controller {
                                         msg = in.readLine();
                                     } catch (SocketTimeoutException e) {
                                         if (dStoreMap.containsKey(connection)) {
+                                            msg = "";
+                                            System.out.println("DStore " + dStoreMap.get(connection) + " timed out");
                                             index.removeTimedOutFiles(dStoreMap.get(connection));
                                         }
                                     }
                                 }
                                 connection.close();
+                                in.close();
                                 dStoreMap.remove(connection);
                                 clients.remove(connection);
                             } catch (Exception e) {
@@ -118,10 +121,12 @@ public class Controller {
 
     public Set<Integer> getRDStores() {
         var res = new HashSet<Integer>();
-        var dStorePorts = (List<Integer>) dStoreMap.values();
-        Collections.shuffle(dStorePorts);
-        for (var i = 0; i < R; i++) {
-            res.add(dStorePorts.get(i));
+        var i = 0;
+        for (Integer integer : dStoreMap.values()) {
+            if (i < R) {
+                res.add(integer);
+                i++;
+            } else break;
         }
         return res;
     }
@@ -156,12 +161,19 @@ public class Controller {
                 System.err.println("Error adding timeout to socket: " + e);
                 e.printStackTrace();
             }
+            System.out.println("DStore " + Integer.parseInt(msg.split(" ")[1]) + " connected");
         } else if (msg.startsWith("STORE_ACK")) {
             synchronized (index) {
-                index.ackReceived(args[1]);
-                if (index.getFile(args[1]).getAcksReceived() == R) {
-                    index.setState(args[1], State.STORE_COMPLETE);
-                    sendMessage("STORE_COMPLETE", index.getStoredBy(args[1]));
+                try {
+                    index.ackReceived(args[1]);
+                    System.out.println("ACK received from " + dStoreMap.get(sender) + " for: " + args[1] + ", " + (R - index.getFile(args[1]).getAcksReceived()) + " remaining");
+                    if (index.getFile(args[1]).getAcksReceived() >= R) {
+                        index.setState(args[1], State.STORE_COMPLETE);
+                        sendMessage("STORE_COMPLETE", index.getStoredBy(args[1]));
+                        System.out.println("Store complete for " + args[1]);
+                    }
+                } catch (NullPointerException e) {
+                    System.out.println("STORE_ACK received from " + dStoreMap.get(sender) + " for deleted file: " + args[1]);
                 }
             }
         } else if (msg.startsWith("STORE")) {
@@ -178,6 +190,7 @@ public class Controller {
                     for (var n : stores) {
                         reply.append(" ").append(n);
                     }
+                    System.out.println("Storing " + args[1] + " to DStores: " + reply);
                     sendMessage(reply.toString(), sender);
                 }
             }
@@ -193,71 +206,45 @@ class Index {
         files = new HashSet<>();
     }
 
-    public boolean containsFile(String filename) {
+    public synchronized boolean containsFile(String filename) {
         return getFile(filename) != null;
     }
 
-    public Socket getStoredBy(String filename) {
+    public synchronized Socket getStoredBy(String filename) {
         return getFile(filename).getStoredBy();
     }
 
-    public DistributedFile getFile(String filename) {
+    public synchronized DistributedFile getFile(String filename) {
         for (var f : files) {
             if (f.getFilename().equals(filename)) return f;
         }
         return null;
     }
 
-    public void removeTimedOutFiles(int dStorePort) {
-        files.removeIf(f -> f.getState().equals(State.STORE_IN_PROGRESS) && f.getDStores().contains(dStorePort));
+    public synchronized void removeTimedOutFiles(int dStorePort) {
+        for (DistributedFile f : files) {
+            if (f.getState().equals(State.STORE_IN_PROGRESS) && f.getDStores().contains(dStorePort)) {
+                files.remove(f);
+                System.out.println("Removed file " + f.getFilename() + " for: " + dStorePort);
+            }
+        }
+        //files.removeIf(f -> f.getState().equals(State.STORE_IN_PROGRESS) && f.getDStores().contains(dStorePort));
     }
 
-    public void ackReceived(String filename) {
+    public synchronized void ackReceived(String filename) {
         Objects.requireNonNull(getFile(filename)).ackReceived();
     }
 
-    public void setState(String filename, State state) {
+    public synchronized void setState(String filename, State state) {
         Objects.requireNonNull(getFile(filename)).setState(state);
     }
 
-    public void addFile(DistributedFile f) {
+    public synchronized void addFile(DistributedFile f) {
         files.add(f);
     }
 
-    public void removeFile(DistributedFile f) {
+    public synchronized void removeFile(DistributedFile f) {
         files.remove(f);
-    }
-}
-
-class Timer {
-
-    private final int duration;
-    private final Runnable callback;
-    private long startTime;
-    private Thread timerThread;
-    private boolean run;
-
-    public Timer(int millis, Runnable callback) {
-        duration = millis;
-        this.callback = callback;
-        run = true;
-    }
-
-    public void start() {
-        timerThread = new Thread(() -> {
-            while (run) {
-                startTime = System.currentTimeMillis();
-                while (startTime + duration < System.currentTimeMillis()) {
-                }
-                run = false;
-                callback.run();
-            }
-        });
-        timerThread.start();
-    }
-
-    public void cancel() {
-        run = false;
     }
 }
 

@@ -12,6 +12,7 @@ public class DStore {
     private Socket controller;
     private Socket client;
     private ServerSocket ss;
+    private boolean stable = true;
 
     public DStore(int port, int cport, int timeout, String fileFolder) {
         this.port = port;
@@ -36,14 +37,18 @@ public class DStore {
     }
 
     private void listenToServer() {
+        stable = true;
         new Thread(() -> {
-            try {
-                var in = new BufferedReader(new InputStreamReader(controller.getInputStream()));
-                String msg;
-                while ((msg = in.readLine()) != null) handleServerMessage(msg);
-                controller.close();
-            } catch (Exception e) {
-                System.err.println("Error listening to server: " + e);
+            while (stable) {
+                try {
+                    var in = new BufferedReader(new InputStreamReader(controller.getInputStream()));
+                    String msg;
+                    while ((msg = in.readLine()) != null) handleServerMessage(msg);
+                    controller.close();
+                } catch (Exception e) {
+                    stable = false;
+                    System.err.println("Error listening to server: " + e);
+                }
             }
         }).start();
     }
@@ -79,15 +84,18 @@ public class DStore {
     }
 
     private void handleServerMessage(String msg) {
-        System.out.println(msg);
+        System.out.println(msg + " at " + port);
     }
 
     private void handleClientMessage(String msg) {
         if (msg.startsWith("STORE")) {
             var args = msg.split(" ");
             var file = new File(fileFolder + "/" + args[1]);
+            System.out.println("Request to store received: " + args[1]);
             sendMessage("ACK", client);
+            System.out.println("ACK sent for: " + args[1]);
             try {
+                System.out.println("Beginning write for: " + args[1]);
                 var in = client.getInputStream();
                 var buf = new byte[Integer.parseInt(args[2])];
                 var bufLen = in.read(buf);
@@ -98,6 +106,7 @@ public class DStore {
                 }
                 in.close();
                 out.close();
+                System.out.println("Written file: " + args[1]);
             } catch (IOException e) {
                 System.err.println("Error accepting file contents from client.");
                 e.printStackTrace();
@@ -110,6 +119,7 @@ public class DStore {
         try {
             controller = new Socket("localhost", cport);
             sendMessage("DSTORE " + port, controller);
+            System.out.println("DStore " + port + " registered with server");
             listenToServer();
             listenForClient();
         } catch (Exception e) {
