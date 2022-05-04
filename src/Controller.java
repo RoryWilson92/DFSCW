@@ -86,7 +86,6 @@ public class Controller {
                         new Thread(() -> {
                             try {
                                 var in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                                connection.setSoTimeout(timeout);
                                 String msg = in.readLine();
                                 while (msg != null) {
                                     handleMessage(msg, connection);
@@ -94,7 +93,7 @@ public class Controller {
                                         msg = in.readLine();
                                     } catch (SocketTimeoutException e) {
                                         if (dStoreMap.containsKey(connection)) {
-
+                                            index.removeTimedOutFiles(dStoreMap.get(connection));
                                         }
                                     }
                                 }
@@ -150,7 +149,6 @@ public class Controller {
     private void handleMessage(String msg, Socket sender) {
         var args = msg.split(" ");
         if (msg.startsWith("DSTORE")) {
-            //dStorePorts.add(Integer.parseInt(msg.split(" ")[1]));
             dStoreMap.put(sender, Integer.parseInt(msg.split(" ")[1]));
             try {
                 sender.setSoTimeout(timeout);
@@ -158,9 +156,7 @@ public class Controller {
                 System.err.println("Error adding timeout to socket: " + e);
                 e.printStackTrace();
             }
-            //dStores.add(sender);
         } else if (msg.startsWith("STORE_ACK")) {
-            //TODO implement timeout
             synchronized (index) {
                 index.ackReceived(args[1]);
                 if (index.getFile(args[1]).getAcksReceived() == R) {
@@ -177,16 +173,12 @@ public class Controller {
                     sendMessage("ERROR_FILE_ALREADY_EXISTS", sender);
                 } else {
                     var stores = getRDStores();
-                    var file = new DistributedFile(args[1], Integer.parseInt(args[2]), State.STORE_IN_PROGRESS, stores, sender);
-                    var timer = new Timer(timeout, () -> index.removeFile(file));
-                    index.addFile(file);
-                    index.addTimer(timer);
+                    index.addFile(new DistributedFile(args[1], Integer.parseInt(args[2]), State.STORE_IN_PROGRESS, stores, sender));
                     var reply = new StringBuilder("STORE_TO");
                     for (var n : stores) {
                         reply.append(" ").append(n);
                     }
                     sendMessage(reply.toString(), sender);
-                    timer.start();
                 }
             }
         }
@@ -196,13 +188,9 @@ public class Controller {
 class Index {
 
     private final Set<DistributedFile> files;
-    private final Set<Timer> timers;
-    private final Map<DistributedFile, Timer> files2;
 
     public Index() {
         files = new HashSet<>();
-        timers = new HashSet<>();
-        files2 = new HashMap<>();
     }
 
     public boolean containsFile(String filename) {
@@ -217,10 +205,11 @@ class Index {
         for (var f : files) {
             if (f.getFilename().equals(filename)) return f;
         }
-//        for (Map.Entry<DistributedFile, Timer> p: files2) {
-//
-//        }
         return null;
+    }
+
+    public void removeTimedOutFiles(int dStorePort) {
+        files.removeIf(f -> f.getState().equals(State.STORE_IN_PROGRESS) && f.getDStores().contains(dStorePort));
     }
 
     public void ackReceived(String filename) {
@@ -229,14 +218,6 @@ class Index {
 
     public void setState(String filename, State state) {
         Objects.requireNonNull(getFile(filename)).setState(state);
-    }
-
-    public void addTimer(Timer timer) {
-        timers.add(timer);
-    }
-
-    public void removeTimer(Timer timer) {
-        timers.remove(timer);
     }
 
     public void addFile(DistributedFile f) {
@@ -288,7 +269,6 @@ class DistributedFile {
     private final Socket storedBy;
     private State state;
     private int acksReceived;
-    private Timer timer;
 
     public DistributedFile(String filename, int size, State state, Set<Integer> dStores, Socket storedBy) {
         this.filename = filename;
@@ -297,6 +277,14 @@ class DistributedFile {
         this.dStores = dStores;
         this.storedBy = storedBy;
         acksReceived = 0;
+    }
+
+    public Set<Integer> getDStores() {
+        return dStores;
+    }
+
+    public State getState() {
+        return state;
     }
 
     public Socket getStoredBy() {
