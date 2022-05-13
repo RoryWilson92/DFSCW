@@ -1,5 +1,4 @@
 import java.io.File;
-import java.util.Random;
 
 public class Main {
 
@@ -48,19 +47,21 @@ public class Main {
         }
         var uploadFolder = new File("src/to_store");
         var fileList = uploadFolder.listFiles();
-        var client = new Client(cport, timeout, Logger.LoggingType.ON_FILE_ONLY);
-        var random = new Random().nextInt(0, 10);
-        try {
-            client.connect();
-            assert fileList != null;
-            client.store(fileList[random]);
-            client.list();
-            client.load(fileList[random].getName(), downloadFolder);
-            client.remove(fileList[random].getName());
-            client.disconnect();
-        } catch (Exception e) {
-            System.err.println(e);
-            e.printStackTrace();
+        for (int i = 0; i < 4; i++) {
+            var client = new Client(cport, timeout, Logger.LoggingType.ON_FILE_ONLY);
+            //var random = new Random().nextInt(0, 10);
+            try {
+                client.connect();
+                assert fileList != null;
+                client.store(fileList[i]);
+                client.list();
+                client.load(fileList[i].getName(), downloadFolder);
+                client.remove(fileList[i].getName());
+                client.disconnect();
+            } catch (Exception e) {
+                System.err.println(e);
+                e.printStackTrace();
+            }
         }
     }
 }
