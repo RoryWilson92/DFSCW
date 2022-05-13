@@ -384,6 +384,10 @@ class DistributedFile {
         return state;
     }
 
+    public void setState(State state) {
+        this.state = state;
+    }
+
     public Socket getStoredBy() {
         return storedBy;
     }
@@ -402,10 +406,6 @@ class DistributedFile {
 
     public void ackReceived() {
         acksReceived++;
-    }
-
-    public void setState(State state) {
-        this.state = state;
     }
 
     public String getFilename() {
