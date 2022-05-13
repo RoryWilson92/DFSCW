@@ -211,8 +211,14 @@ public class Controller {
                 var file = index.getFile(args[1]);
                 file.reloadAttempted();
                 if (file.getReloadAttempts() < file.getDStores().size()) {
-                    System.out.println("Re-loading " + file.getFilename() + " from DStore: " + file.getDStores().toArray()[file.getReloadAttempts()]);
-                    sendMessage("LOAD_FROM " + file.getDStores().toArray()[file.getReloadAttempts()] + " " + file.getSize(), sender);
+                    if (dStoreMap.size() < R) {
+                        sendMessage("ERROR_NOT_ENOUGH_DSTORES", sender);
+                    } else if (!index.containsFile(args[1]) || file.getState().equals(State.STORE_IN_PROGRESS)) {
+                        sendMessage("ERROR_FILE_DOES_NOT_EXIST", sender);
+                    } else {
+                        System.out.println("Re-loading " + file.getFilename() + " from DStore: " + file.getDStores().toArray()[file.getReloadAttempts()]);
+                        sendMessage("LOAD_FROM " + file.getDStores().toArray()[file.getReloadAttempts()] + " " + file.getSize(), sender);
+                    }
                 } else {
                     System.out.println("Couldn't load: " + file.getFilename());
                     sendMessage("ERROR_LOAD", sender);
@@ -222,7 +228,7 @@ public class Controller {
             synchronized (index) {
                 if (dStoreMap.size() < R) {
                     sendMessage("ERROR_NOT_ENOUGH_DSTORES", sender);
-                } else if (!index.containsFile(args[1])) {
+                } else if (!index.containsFile(args[1]) || index.getFile(args[1]).getState().equals(State.STORE_IN_PROGRESS)) {
                     sendMessage("ERROR_FILE_DOES_NOT_EXIST", sender);
                 } else {
                     var file = index.getFile(args[1]);
