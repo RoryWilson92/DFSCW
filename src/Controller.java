@@ -114,7 +114,7 @@ public class Controller {
                 }
                 ss.close();
             } catch (Exception e) {
-                System.err.println("Error creating ServerSocket: " + e);
+                System.err.println("Error creating ServerSocket in Controller: " + e);
             }
         }).start();
     }
@@ -153,6 +153,9 @@ public class Controller {
 
     private void handleMessage(String msg, Socket sender) {
         var args = msg.split(" ");
+
+        // DStore connecting.
+
         if (msg.startsWith("DSTORE")) {
             dStoreMap.put(sender, Integer.parseInt(msg.split(" ")[1]));
             try {
@@ -162,18 +165,23 @@ public class Controller {
                 e.printStackTrace();
             }
             System.out.println("DStore " + Integer.parseInt(msg.split(" ")[1]) + " connected");
-        } else if (msg.startsWith("STORE_ACK")) {
+        }
+
+        // STORE commands.
+
+        else if (msg.startsWith("STORE_ACK")) {
             synchronized (index) {
+                var file = index.getFile(args[1]);
                 try {
-                    index.ackReceived(args[1]);
-                    System.out.println("ACK received from " + dStoreMap.get(sender) + " for: " + args[1] + ", " + (R - index.getFile(args[1]).getAcksReceived()) + " remaining");
-                    if (index.getFile(args[1]).getAcksReceived() >= R) {
-                        index.setState(args[1], State.STORE_COMPLETE);
-                        sendMessage("STORE_COMPLETE", index.getStoredBy(args[1]));
-                        System.out.println("Store complete for " + args[1]);
+                    file.ackReceived();
+                    System.out.println("ACK received from " + dStoreMap.get(sender) + " for: " + file.getFilename() + ", " + (R - file.getAcksReceived()) + " remaining");
+                    if (file.getAcksReceived() >= R) {
+                        file.setState(State.STORE_COMPLETE);
+                        sendMessage("STORE_COMPLETE", file.getStoredBy());
+                        System.out.println("Store complete for " + file.getFilename());
                     }
                 } catch (NullPointerException e) {
-                    System.out.println("STORE_ACK received from " + dStoreMap.get(sender) + " for deleted file: " + args[1]);
+                    System.out.println("STORE_ACK received from " + dStoreMap.get(sender) + " for deleted file: " + file.getFilename());
                 }
             }
         } else if (msg.startsWith("STORE")) {
@@ -195,6 +203,34 @@ public class Controller {
                 }
             }
         }
+
+        // LOAD commands.
+
+        else if (msg.startsWith("RELOAD")) {
+            synchronized (index) {
+                var file = index.getFile(args[1]);
+                file.reloadAttempted();
+                if (file.getReloadAttempts() < file.getDStores().size()) {
+                    System.out.println("Re-loading " + file.getFilename() + " from DStore: " + file.getDStores().toArray()[file.getReloadAttempts()]);
+                    sendMessage("LOAD_FROM " + file.getDStores().toArray()[file.getReloadAttempts()] + " " + file.getSize(), sender);
+                } else {
+                    System.out.println("Couldn't load: " + file.getFilename());
+                    sendMessage("ERROR_LOAD", sender);
+                }
+            }
+        } else if (msg.startsWith("LOAD")) {
+            synchronized (index) {
+                if (dStoreMap.size() < R) {
+                    sendMessage("ERROR_NOT_ENOUGH_DSTORES", sender);
+                } else if (!index.containsFile(args[1])) {
+                    sendMessage("ERROR_FILE_DOES_NOT_EXIST", sender);
+                } else {
+                    var file = index.getFile(args[1]);
+                    System.out.println("Loading " + file.getFilename() + " from DStore: " + file.getDStores().toArray()[file.getReloadAttempts()]);
+                    sendMessage("LOAD_FROM " + file.getDStores().toArray()[file.getReloadAttempts()] + " " + file.getSize(), sender);
+                }
+            }
+        }
     }
 }
 
@@ -203,18 +239,14 @@ class Index {
     private final Set<DistributedFile> files;
 
     public Index() {
-        files = new HashSet<>();
+        files = new LinkedHashSet<>();
     }
 
-    public synchronized boolean containsFile(String filename) {
+    public boolean containsFile(String filename) {
         return getFile(filename) != null;
     }
 
-    public synchronized Socket getStoredBy(String filename) {
-        return getFile(filename).getStoredBy();
-    }
-
-    public synchronized DistributedFile getFile(String filename) {
+    public DistributedFile getFile(String filename) {
         for (var f : files) {
             if (f.getFilename().equals(filename)) return f;
         }
@@ -231,19 +263,11 @@ class Index {
         //files.removeIf(f -> f.getState().equals(State.STORE_IN_PROGRESS) && f.getDStores().contains(dStorePort));
     }
 
-    public synchronized void ackReceived(String filename) {
-        Objects.requireNonNull(getFile(filename)).ackReceived();
-    }
-
-    public synchronized void setState(String filename, State state) {
-        Objects.requireNonNull(getFile(filename)).setState(state);
-    }
-
-    public synchronized void addFile(DistributedFile f) {
+    public void addFile(DistributedFile f) {
         files.add(f);
     }
 
-    public synchronized void removeFile(DistributedFile f) {
+    public void removeFile(DistributedFile f) {
         files.remove(f);
     }
 }
@@ -256,6 +280,7 @@ class DistributedFile {
     private final Socket storedBy;
     private State state;
     private int acksReceived;
+    private int reloadAttempts;
 
     public DistributedFile(String filename, int size, State state, Set<Integer> dStores, Socket storedBy) {
         this.filename = filename;
@@ -264,6 +289,11 @@ class DistributedFile {
         this.dStores = dStores;
         this.storedBy = storedBy;
         acksReceived = 0;
+        reloadAttempts = 0;
+    }
+
+    public int getSize() {
+        return size;
     }
 
     public Set<Integer> getDStores() {
@@ -280,6 +310,14 @@ class DistributedFile {
 
     public int getAcksReceived() {
         return acksReceived;
+    }
+
+    public int getReloadAttempts() {
+        return reloadAttempts;
+    }
+
+    public void reloadAttempted() {
+        reloadAttempts++;
     }
 
     public void ackReceived() {
