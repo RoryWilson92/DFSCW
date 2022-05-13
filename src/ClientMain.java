@@ -25,9 +25,9 @@ public class ClientMain {
         testClient(cport, timeout, downloadFolder, uploadFolder);
 
         // launch a number of concurrent clients, each doing the same operations
-//		for (int i = 0; i < 10; i++) {
-//			new Thread(() -> test2Client(cport, timeout, downloadFolder, uploadFolder)).start();
-//		}
+		for (int i = 0; i < 10; i++) {
+			new Thread(() -> test2Client(cport, timeout, downloadFolder, uploadFolder)).start();
+		}
     }
 
     public static void test2Client(int cport, int timeout, File downloadFolder, File uploadFolder) {
