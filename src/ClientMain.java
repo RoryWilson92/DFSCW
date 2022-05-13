@@ -5,7 +5,7 @@ import java.util.Random;
 
 public class ClientMain {
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
 
         final int cport = Integer.parseInt(args[0]);
         int timeout = Integer.parseInt(args[1]);
@@ -25,12 +25,12 @@ public class ClientMain {
         testClient(cport, timeout, downloadFolder, uploadFolder);
 
         // launch a number of concurrent clients, each doing the same operations
-//		for (int i = 0; i < 10; i++) {
-//			new Thread(() -> test2Client(cport, timeout, downloadFolder, uploadFolder)).start();
-//		}
+        for (int i = 0; i < 10; i++) {
+            new Thread(() -> test2Client(cport, timeout, uploadFolder)).start();
+        }
     }
 
-    public static void test2Client(int cport, int timeout, File downloadFolder, File uploadFolder) {
+    public static void test2Client(int cport, int timeout, File uploadFolder) {
         Client client = null;
 
         try {
@@ -67,7 +67,7 @@ public class ClientMain {
             }
 
             try {
-                list = list(client);
+                list(client);
             } catch (IOException e) {
                 e.printStackTrace();
             }
