@@ -120,12 +120,10 @@ public class Controller {
 
     public Set<Integer> getRDStores() {
         var res = new HashSet<Integer>();
-        var i = 0;
-        for (Integer integer : dStoreMap.values()) {
-            if (i < R) {
-                res.add(integer);
-                i++;
-            } else break;
+        var tmp = new ArrayList<>(dStoreMap.values().stream().toList());
+        Collections.shuffle(tmp);
+        for (int i = 0; i < R; i++) {
+            res.add(tmp.get(i));
         }
         return res;
     }

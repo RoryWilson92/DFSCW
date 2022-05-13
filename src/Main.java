@@ -1,13 +1,18 @@
 import java.io.File;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Random;
 
 public class Main {
+
+    public static Integer t = 0;
 
     public static void main(String[] args) {
         var timeout = 5000;
         var cport = 4322;
         var dStorePorts = 1300;
         var rebalancePeriod = 7;
-        var R = 3;
+        var R = 4;
         new Thread(() -> {
             var dir = new File(System.getProperty("user.dir") + "/dStorage");
             if (dir.exists()) {
@@ -24,7 +29,7 @@ public class Main {
             Thread.sleep(1000);
         } catch (Exception ignored) {
         }
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 50; i++) {
             int finalI = i;
             new Thread(() -> {
                 var file = "d" + finalI;
@@ -47,21 +52,37 @@ public class Main {
         }
         var uploadFolder = new File("src/to_store");
         var fileList = uploadFolder.listFiles();
-        for (int i = 0; i < 4; i++) {
-            var client = new Client(cport, timeout, Logger.LoggingType.ON_FILE_ONLY);
-            //var random = new Random().nextInt(0, 10);
-            try {
-                client.connect();
-                assert fileList != null;
-                client.store(fileList[i]);
-                client.list();
-                client.load(fileList[i].getName(), downloadFolder);
-                client.remove(fileList[i].getName());
-                client.disconnect();
-            } catch (Exception e) {
-                System.err.println(e);
-                e.printStackTrace();
-            }
+        Integer[] arr = new Integer[10];
+        for (int i = 0; i < arr.length; i++) {
+            arr[i] = i;
         }
+        Collections.shuffle(Arrays.asList(arr));
+        System.out.println(Arrays.toString(arr));
+        var r = new Random();
+        for (int i = 0; i < 6; i++) {
+            int finalI = i;
+            var random = r.nextInt(0, 10);
+            new Thread(() -> {
+                var client = new Client(cport, timeout, Logger.LoggingType.ON_FILE_ONLY);
+                try {
+                    client.connect();
+                    assert fileList != null;
+                    client.store(fileList[random]);
+                    client.list();
+                    client.load(fileList[random].getName(), downloadFolder);
+                    //client.remove(fileList[random].getName());
+                    client.disconnect();
+                    synchronized (t) {
+                        t++;
+                    }
+                } catch (Exception e) {
+                    System.err.println(e);
+                    e.printStackTrace();
+                }
+            }).start();
+        }
+        while (t < 6) {
+        }
+        System.exit(0);
     }
 }
