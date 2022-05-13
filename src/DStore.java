@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.Objects;
 
 public class DStore {
@@ -66,8 +67,14 @@ public class DStore {
                     }
                     client.close();
                 }
+            } catch (SocketException e) {
+                if (e.getMessage().contains("Socket closed")) {
+                    System.out.println("Client terminated connection with DStore: " + port);
+                } else {
+                    System.err.println("Error creating ServerSocket in DStore: " + e);
+                }
             } catch (Exception e) {
-                System.err.println("Error creating ServerSocket: " + e);
+                System.err.println("Error creating ServerSocket in DStore: " + e);
             }
         }).start();
     }
@@ -84,12 +91,33 @@ public class DStore {
     }
 
     private void handleServerMessage(String msg) {
-        System.out.println(msg + " at " + port);
+        var args = msg.split(" ");
+
+        // REMOVE commands.
+
+        if (msg.startsWith("REMOVE")) {
+            var file = new File(fileFolder + "/" + args[1]);
+            System.out.println("Request to remove received: " + file.getName());
+            if (file.exists()) {
+                if (file.delete()) {
+                    sendMessage("REMOVE_ACK " + args[1], controller);
+                    System.out.println("Removed file: " + args[1]);
+                } else {
+                    System.err.println("Error deleting file " + args[1] + " at DStore: " + port);
+                }
+            } else {
+                sendMessage("ERROR_FILE_DOES_NOT_EXIST " + args[1], controller);
+            }
+
+        }
     }
 
     private void handleClientMessage(String msg) {
+        var args = msg.split(" ");
+
+        // STORE commands.
+
         if (msg.startsWith("STORE")) {
-            var args = msg.split(" ");
             var file = new File(fileFolder + "/" + args[1]);
             System.out.println("Request to store received: " + args[1]);
             sendMessage("ACK", client);
@@ -98,20 +126,47 @@ public class DStore {
                 System.out.println("Beginning write for: " + args[1]);
                 var in = client.getInputStream();
                 var buf = new byte[Integer.parseInt(args[2])];
-                var bufLen = in.read(buf);
+                int bufLen;
                 var out = new FileOutputStream(file);
-                out.write(buf, 0, bufLen);
                 while ((bufLen = in.read(buf)) != -1) {
                     out.write(buf, 0, bufLen);
                 }
                 in.close();
                 out.close();
+                client.close();
                 System.out.println("Written file: " + args[1]);
             } catch (IOException e) {
                 System.err.println("Error accepting file contents from client.");
                 e.printStackTrace();
             }
             sendMessage("STORE_ACK " + args[1], controller);
+        }
+
+        // LOAD commands.
+
+        else if (msg.startsWith("LOAD_DATA")) {
+            var file = new File(fileFolder + "/" + args[1]);
+            System.out.println("Request to load received: " + file.getName());
+            try {
+                if (file.exists()) {
+                    System.out.println("Beginning load for: " + file.getName());
+                    var in = new FileInputStream(file);
+                    var out = client.getOutputStream();
+                    var buf = new byte[(int) file.length()];
+                    int bufLen;
+                    while ((bufLen = in.read(buf)) != -1) {
+                        out.write(buf, 0, bufLen);
+                    }
+                    in.close();
+                    out.close();
+                    System.out.println("Loaded file: " + file.getName());
+                } else {
+                    client.close();
+                }
+            } catch (Exception e) {
+                System.err.println("Error loading data from Dstore " + port + ":" + e);
+                e.printStackTrace();
+            }
         }
     }
 
