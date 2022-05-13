@@ -93,7 +93,6 @@ public class Controller {
                                         msg = in.readLine();
                                     } catch (SocketTimeoutException e) {
                                         if (dStoreMap.containsKey(connection)) {
-//                                            System.out.println("DStore " + dStoreMap.get(connection) + " timed out");
                                             msg = "";
                                             index.removeTimedOutFiles(dStoreMap.get(connection));
                                         }

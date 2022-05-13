@@ -139,10 +139,6 @@ public class DStore {
                 System.err.println("Error accepting file contents from client.");
                 e.printStackTrace();
             }
-//            try {
-//                Thread.sleep(timeout + 100);
-//            } catch (Exception ignored) {
-//            }
             sendMessage("STORE_ACK " + args[1], controller);
         }
 
