@@ -91,7 +91,25 @@ public class DStore {
     }
 
     private void handleServerMessage(String msg) {
-        System.out.println(msg + " at " + port);
+        var args = msg.split(" ");
+
+        // REMOVE commands.
+
+        if (msg.startsWith("REMOVE")) {
+            var file = new File(fileFolder + "/" + args[1]);
+            System.out.println("Request to remove received: " + file.getName());
+            if (file.exists()) {
+                if (file.delete()) {
+                    sendMessage("REMOVE_ACK " + args[1], controller);
+                    System.out.println("Removed file: " + args[1]);
+                } else {
+                    System.err.println("Error deleting file " + args[1] + " at DStore: " + port);
+                }
+            } else {
+                sendMessage("ERROR_FILE_DOES_NOT_EXIST " + args[1], controller);
+            }
+
+        }
     }
 
     private void handleClientMessage(String msg) {
@@ -121,6 +139,10 @@ public class DStore {
                 System.err.println("Error accepting file contents from client.");
                 e.printStackTrace();
             }
+//            try {
+//                Thread.sleep(timeout + 100);
+//            } catch (Exception ignored) {
+//            }
             sendMessage("STORE_ACK " + args[1], controller);
         }
 

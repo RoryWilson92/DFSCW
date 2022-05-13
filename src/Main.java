@@ -48,13 +48,15 @@ public class Main {
         }
         var uploadFolder = new File("src/to_store");
         var fileList = uploadFolder.listFiles();
-        var client = new Client(cport, timeout, Logger.LoggingType.ON_FILE_AND_TERMINAL);
+        var client = new Client(cport, timeout, Logger.LoggingType.ON_FILE_ONLY);
         var random = new Random().nextInt(0, 10);
         try {
             client.connect();
             assert fileList != null;
             client.store(fileList[random]);
+            client.list();
             client.load(fileList[random].getName(), downloadFolder);
+            client.remove(fileList[random].getName());
             client.disconnect();
         } catch (Exception e) {
             System.err.println(e);
