@@ -173,7 +173,7 @@ public class DStore {
     public void start() {
         try {
             controller = new Socket("localhost", cport);
-            sendMessage("DSTORE " + port, controller);
+            sendMessage("JOIN " + port, controller);
             System.out.println("DStore " + port + " registered with server");
             listenToServer();
             listenForClient();

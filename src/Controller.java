@@ -11,7 +11,7 @@ enum State {
 
 public class Controller {
 
-    private final int R;
+    private final Integer R;
     private final int timeout;
     private final int rebalancePeriod;
     private final int cport;
@@ -143,12 +143,78 @@ public class Controller {
         }
     }
 
+    private void rebalance() {
+        Socket dStore;
+        BufferedReader in;
+        String[] args;
+        String msg;
+//        var filesTotal = new ArrayList<String[]>();
+        var files = new HashSet<String>();
+        for (Map.Entry<Socket, Integer> e : dStoreMap.entrySet()) {
+            dStore = e.getKey();
+            sendMessage("LIST", dStore);
+            try {
+                in = new BufferedReader(new InputStreamReader(dStore.getInputStream()));
+                msg = in.readLine();
+                while (msg != null) {
+                    args = msg.split(" ");
+                    if (msg.startsWith("LIST")) {
+                        //filesTotal.add(Arrays.copyOfRange(args, 1, args.length, String[].class));
+                        files.addAll(Arrays.asList(args).subList(1, args.length));
+                        msg = null;
+                    }
+                    try {
+                        msg = in.readLine();
+                    } catch (SocketTimeoutException e1) {
+
+                    }
+                }
+            } catch (IOException e2) {
+                System.err.println("Error performing rebalance: " + e2);
+                e2.printStackTrace();
+            }
+        }
+        //String msg;
+        DistributedFile f;
+        for (String file : files) {
+            if (!index.containsFile(file)) {
+                f = index.getFile(file);
+                for (var s : f.getDStores()) {
+                    for (var e : dStoreMap.entrySet()) {
+                        if (e.getValue().equals(s)) {
+                            try {
+                                var in2 = new BufferedReader(new InputStreamReader(e.getKey().getInputStream()));
+//                                msg = in.readLine();
+//                                while (msg != null) {
+//
+//                                }
+                            } catch (IOException e3) {
+                                System.err.println("Error removing ghost files: " + e3);
+                                e3.printStackTrace();
+                            }
+                            sendMessage("REMOVE " + file, e.getKey());
+                        }
+                    }
+                }
+                index.removeFile(file);
+            }
+        }
+//        var upper = Math.ceil((R.doubleValue() * files.size()) / dStoreMap.size());
+//        var lower = Math.floor((R.doubleValue() * files.size()) / dStoreMap.size());
+//        for (String[] dStore : filesTotal) {
+//            if (dStore.length < upper && dStore.length > lower) {
+//            } else {
+//
+//            }
+//        }
+    }
+
     private void handleMessage(String msg, Socket sender) {
         var args = msg.split(" ");
 
         // DStore connecting.
 
-        if (msg.startsWith("DSTORE")) {
+        if (msg.startsWith("JOIN")) {
             dStoreMap.put(sender, Integer.parseInt(msg.split(" ")[1]));
             try {
                 sender.setSoTimeout(timeout);
@@ -332,6 +398,10 @@ class Index {
 
     public void removeFile(DistributedFile f) {
         files.remove(f);
+    }
+
+    public void removeFile(String f) {
+        files.remove(getFile(f));
     }
 }
 
