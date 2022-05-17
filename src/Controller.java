@@ -195,6 +195,18 @@ public class Controller {
             }
             newIndex.sort((o1, o2) -> Integer.compare(o2.getValue().size(), o1.getValue().size()));
         }
+        var removesList = new HashMap<Integer, Set<String>>();
+        var movesList = new HashMap<Integer, Set<String>>();
+        for (var newI : newIndex) {
+            var newSet = new HashSet<>(newI.getValue());
+            var oldSet = new HashSet<>(oldIndex.get(newI.getKey()));
+            var removes = new HashSet<>(oldSet);
+            removes.removeAll(newSet);
+            removesList.put(newI.getKey(), removes);
+            var moves = new HashSet<>(newSet);
+            moves.removeAll(oldSet);
+            movesList.put(newI.getKey(), moves);
+        }
     }
 
     private void handleMessage(String msg, Socket sender) {

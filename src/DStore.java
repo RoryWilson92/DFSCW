@@ -108,7 +108,12 @@ public class DStore {
             } else {
                 sendMessage("ERROR_FILE_DOES_NOT_EXIST " + args[1], controller);
             }
-
+        } else if (msg.startsWith("LIST")) {
+            StringBuilder reply = new StringBuilder("LIST");
+            for (var t : Objects.requireNonNull(fileFolder.list())) {
+                reply.append(" ").append(t);
+            }
+            sendMessage(reply.toString(), controller);
         }
     }
 
