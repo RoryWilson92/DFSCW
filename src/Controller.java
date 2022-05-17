@@ -98,8 +98,8 @@ public class Controller {
                                         }
                                     }
                                 }
-                                connection.close();
                                 in.close();
+                                connection.close();
                                 dStoreMap.remove(connection);
                                 clients.remove(connection);
                             } catch (Exception e) {
