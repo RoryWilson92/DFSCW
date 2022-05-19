@@ -11,8 +11,8 @@ public class Main {
         var timeout = 5000;
         var cport = 4322;
         var dStorePorts = 1300;
-        var rebalancePeriod = 7;
-        var R = 4;
+        var rebalancePeriod = 10000;
+        var R = 3;
         new Thread(() -> {
             var dir = new File(System.getProperty("user.dir") + "/dStorage");
             if (dir.exists()) {
@@ -29,7 +29,7 @@ public class Main {
             Thread.sleep(1000);
         } catch (Exception ignored) {
         }
-        for (int i = 0; i < 50; i++) {
+        for (int i = 0; i < 5; i++) {
             int finalI = i;
             new Thread(() -> {
                 var file = "d" + finalI;
@@ -59,7 +59,7 @@ public class Main {
         Collections.shuffle(Arrays.asList(arr));
         System.out.println(Arrays.toString(arr));
         var r = new Random();
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 3; i++) {
             int finalI = i;
             var random = r.nextInt(0, 10);
             new Thread(() -> {
@@ -67,13 +67,18 @@ public class Main {
                 try {
                     client.connect();
                     assert fileList != null;
-                    client.store(fileList[random]);
+                    client.store(fileList[arr[finalI]]);
                     client.list();
-                    client.load(fileList[random].getName(), downloadFolder);
+                    client.load(fileList[arr[finalI]].getName(), downloadFolder);
                     //client.remove(fileList[random].getName());
                     client.disconnect();
                     synchronized (t) {
                         t++;
+                        System.out.println("T IS EQUAL TO: " + t);
+                        if (t == 3) {
+                            System.out.println("Client requests finished.");
+                            //System.exit(0);
+                        }
                     }
                 } catch (Exception e) {
                     System.err.println(e);
@@ -81,8 +86,5 @@ public class Main {
                 }
             }).start();
         }
-        while (t < 6) {
-        }
-        System.exit(0);
     }
 }

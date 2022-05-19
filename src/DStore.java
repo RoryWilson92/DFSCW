@@ -45,7 +45,7 @@ public class DStore {
                     var in = new BufferedReader(new InputStreamReader(controller.getInputStream()));
                     String msg;
                     while ((msg = in.readLine()) != null) handleServerMessage(msg);
-                    controller.close();
+                    //controller.close();
                 } catch (Exception e) {
                     stable = false;
                     System.err.println("Error listening to server: " + e);
@@ -65,7 +65,7 @@ public class DStore {
                     while ((msg = in.readLine()) != null) {
                         handleClientMessage(msg);
                     }
-                    client.close();
+                    //client.close();
                 }
             } catch (SocketException e) {
                 if (e.getMessage().contains("Socket closed")) {
@@ -93,7 +93,7 @@ public class DStore {
     private void handleServerMessage(String msg) {
         var args = msg.split(" ");
 
-        // REMOVE commands.
+        // REMOVE command.
 
         if (msg.startsWith("REMOVE")) {
             var file = new File(fileFolder + "/" + args[1]);
@@ -108,12 +108,30 @@ public class DStore {
             } else {
                 sendMessage("ERROR_FILE_DOES_NOT_EXIST " + args[1], controller);
             }
-        } else if (msg.startsWith("LIST")) {
+        }
+
+        // LIST command.
+
+        else if (msg.equals("LIST")) {
             StringBuilder reply = new StringBuilder("LIST");
             for (var t : Objects.requireNonNull(fileFolder.list())) {
                 reply.append(" ").append(t);
             }
             sendMessage(reply.toString(), controller);
+        }
+
+        // Rebalance commands.
+
+        else if (msg.startsWith("REBALANCE")) {
+            System.out.println(msg);
+            var numFilesSend = Integer.parseInt(args[1]);
+            var numDStores = 0;
+            for (int i = 0; i < numFilesSend; i++) {
+                numDStores = Integer.parseInt(args[3 + numDStores]);
+                for (int j = 0; j < Integer.parseInt(args[3]); j++) {
+                    //sendMessage("REBALANCE_STORE " + args[2], );
+                }
+            }
         }
     }
 
@@ -136,9 +154,9 @@ public class DStore {
                 while ((bufLen = in.read(buf)) != -1) {
                     out.write(buf, 0, bufLen);
                 }
-                in.close();
-                out.close();
-                client.close();
+                //in.close();
+                //out.close();
+                //client.close();
                 System.out.println("Written file: " + args[1]);
             } catch (IOException e) {
                 System.err.println("Error accepting file contents from client.");
@@ -162,8 +180,8 @@ public class DStore {
                     while ((bufLen = in.read(buf)) != -1) {
                         out.write(buf, 0, bufLen);
                     }
-                    in.close();
-                    out.close();
+                    //in.close();
+                    //out.close();
                     System.out.println("Loaded file: " + file.getName());
                 } else {
                     client.close();
